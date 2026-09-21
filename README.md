@@ -19,6 +19,28 @@ Nguyên tắc chi phối mọi quyết định trong repo này:
 
 ---
 
+## Đây là cái gì — và không phải cái gì
+
+**Một CLI tool viết bằng Python.** Cài bằng `pip`, chạy bằng `skill-lab <lệnh>`, và nó đo một
+workspace *khác*.
+
+| | |
+|---|---|
+| **Không phải một agent.** | Nó không có agent nào của riêng nó. [`agent.py`](src/skill_lab/agent.py) gọi `claude -p` như một subprocess — nó là **người tiêu thụ** một agent runtime. |
+| **Không phải một Claude Code plugin.** | Không có gì để cài vào phiên của bạn. Giá trị nằm ở CLI. |
+| **Không chứa skill nào.** | Skill nằm ở workspace **đích** — repo mà bạn trỏ `--workspace` vào. |
+
+Quan hệ nó giả định:
+
+```
+repo này (công cụ)  ──đo──>  workspace của bạn (.claude/skills/ + cases/)
+```
+
+`tests/fixtures/demo-workspace/` là một workspace tí hon dùng cho demo và test. Nó ở trong
+`tests/` chứ không ở gốc repo, đúng vì nó là **dữ liệu thử**, không phải thứ repo này cung cấp.
+
+---
+
 ## Cài đặt
 
 ```bash
@@ -36,6 +58,13 @@ cd <repo có .claude/skills/>
 skill-lab init          # tạo skill-lab.yaml + cases/
 skill-lab skills        # các skill tìm thấy, kèm hash phiên bản
 skill-lab run <case>    # chạy thật (tốn tiền)
+```
+
+Thử ngay mà không tốn đồng nào, dùng workspace demo có sẵn:
+
+```bash
+skill-lab --workspace tests/fixtures/demo-workspace run tidy-pass --dry       # đạt
+skill-lab --workspace tests/fixtures/demo-workspace run tidy-premature --dry  # hỏng có chủ ý
 ```
 
 `skill-lab.yaml` là **thứ duy nhất kit này biết về workspace của bạn**. Không dòng code nào trong
@@ -200,7 +229,7 @@ thiện của skill, và không dòng nào trong báo cáo nói rằng model đ�
 ### Model matrix
 
 ```bash
-skill-lab matrix --dataset demo
+skill-lab --workspace tests/fixtures/demo-workspace matrix --dataset demo
 ```
 
 ```
@@ -233,7 +262,7 @@ khi sự thật là *"chưa đo đủ để biết"*.
 ## Thí nghiệm
 
 ```bash
-skill-lab experiment experiments/rang-buoc-truoc-ghi.yaml
+skill-lab --workspace tests/fixtures/demo-workspace \n  experiment tests/fixtures/demo-workspace/experiments/rang-buoc-truoc-ghi.yaml
 ```
 
 File thí nghiệm bắt bạn viết **giả thuyết trước khi thấy kết quả**, và khai biến nào đổi / biến

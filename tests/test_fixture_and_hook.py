@@ -21,11 +21,14 @@ from skill_lab import config as config_mod
 from skill_lab import fixture as fixture_mod
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+#: Workspace gia ma cong cu do. KHONG phai repo nay: repo nay la cong cu, thu muc kia la du lieu
+#: thu. Tron hai thu lam mot la cach khong ai con doc ra duoc cai nao dang do cai nao.
+DEMO_WORKSPACE = REPO_ROOT / "tests" / "fixtures" / "demo-workspace"
 
 
 @pytest.fixture
 def built():
-    cfg = config_mod.load(REPO_ROOT)
+    cfg = config_mod.load(DEMO_WORKSPACE)
     tmp = Path(tempfile.mkdtemp(prefix="skill-lab-test-")) / "ws"
     fx = fixture_mod.build(cfg, tmp)
     try:
@@ -144,11 +147,11 @@ def test_hook_khong_bao_gio_lam_hong_lan_chay_no_dang_quan_sat(built):
     assert proc.returncode == 0
 
 
-def test_fixture_khong_chep_nhung_thu_da_loai_tru(built):
+def test_fixture_chep_du_workspace_va_loai_tru_dung_thu(built):
     _, fx = built
-    assert not (fx.root / ".venv").exists()
-    assert not (fx.root / ".git").exists()
     assert (fx.root / ".claude" / "skills" / "tidy-a-module" / "SKILL.md").is_file()
+    assert (fx.root / "cases" / "demo" / "tidy-pass.yaml").is_file()
+    assert not (fx.root / ".git").exists(), "`.git` nam trong danh sach loai tru mac dinh"
 
 
 def test_repo_chua_co_commit_thi_auto_chon_copy_chu_khong_chon_worktree(tmp_path):

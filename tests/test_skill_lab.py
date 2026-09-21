@@ -20,6 +20,9 @@ from skill_lab.cli import main as cli_main
 from skill_lab.model import RunRecord, build_trajectory, call_steps
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+#: Workspace gia ma cong cu do. KHONG phai repo nay: repo nay la cong cu, thu muc kia la du lieu
+#: thu. Tron hai thu lam mot la cach khong ai con doc ra duoc cai nao dang do cai nao.
+DEMO_WORKSPACE = REPO_ROOT / "tests" / "fixtures" / "demo-workspace"
 
 
 # ── du lieu dung chung ──────────────────────────────────────────────────────────
@@ -422,14 +425,14 @@ def test_doan_run_id_nhap_nhang_thi_bao_loi_chu_khong_doan(tmp_path):
 
 
 def test_duong_ong_day_du_tren_case_dat(tmp_path, capsys):
-    code = cli_main(["--workspace", str(REPO_ROOT), "run", "tidy-pass", "--dry"])
+    code = cli_main(["--workspace", str(DEMO_WORKSPACE), "run", "tidy-pass", "--dry"])
     out = capsys.readouterr().out
     assert code == 0
     assert "8/8 check tat dinh xanh" in out
 
 
 def test_duong_ong_day_du_tren_case_hong_chi_dung_buoc_sai_dau_tien(capsys):
-    code = cli_main(["--workspace", str(REPO_ROOT), "run", "tidy-premature", "--dry"])
+    code = cli_main(["--workspace", str(DEMO_WORKSPACE), "run", "tidy-premature", "--dry"])
     out = capsys.readouterr().out
     assert code == 1
     assert "buoc sai dau tien   2" in out
@@ -439,9 +442,9 @@ def test_duong_ong_day_du_tren_case_hong_chi_dung_buoc_sai_dau_tien(capsys):
 
 def test_cham_lai_mot_trajectory_da_luu_ra_dung_ket_qua_cu(capsys):
     """Tinh chat duy nhat co quyen doi hoi tinh tat dinh o day la BO CHAM, khong phai actor."""
-    cli_main(["--workspace", str(REPO_ROOT), "run", "tidy-premature", "--dry"])
+    cli_main(["--workspace", str(DEMO_WORKSPACE), "run", "tidy-premature", "--dry"])
     capsys.readouterr()
-    config = __import__("skill_lab.config", fromlist=["load"]).load(REPO_ROOT)
+    config = __import__("skill_lab.config", fromlist=["load"]).load(DEMO_WORKSPACE)
     latest = store.list_runs(config.runs_dir, case_id="tidy-premature")[-1]
-    cli_main(["--workspace", str(REPO_ROOT), "replay", latest.run_id, "--rescore"])
+    cli_main(["--workspace", str(DEMO_WORKSPACE), "replay", latest.run_id, "--rescore"])
     assert "cham lai ra dung ket qua cu" in capsys.readouterr().out

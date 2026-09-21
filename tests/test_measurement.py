@@ -24,6 +24,9 @@ from skill_lab import runner, store, trace, verify
 from skill_lab.model import CheckResult, RunRecord, build_trajectory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+#: Workspace gia ma cong cu do. KHONG phai repo nay: repo nay la cong cu, thu muc kia la du lieu
+#: thu. Tron hai thu lam mot la cach khong ai con doc ra duoc cai nao dang do cai nao.
+DEMO_WORKSPACE = REPO_ROOT / "tests" / "fixtures" / "demo-workspace"
 
 
 def row(event="tool_call", **kw):
@@ -252,9 +255,9 @@ def test_lan_chay_dry_khong_ghi_ten_model_nao(tmp_path, capsys):
     chua xay ra, va no se lam ban bang model matrix."""
     from skill_lab.cli import main as cli_main
 
-    cli_main(["--workspace", str(REPO_ROOT), "run", "tidy-pass", "--dry"])
+    cli_main(["--workspace", str(DEMO_WORKSPACE), "run", "tidy-pass", "--dry"])
     capsys.readouterr()
-    config = config_mod.load(REPO_ROOT)
+    config = config_mod.load(DEMO_WORKSPACE)
     latest = store.list_runs(config.runs_dir, case_id="tidy-pass")[-1]
     assert latest.dry is True
     assert latest.model == ""
@@ -351,7 +354,7 @@ def test_thi_nghiem_bao_khi_bien_doi_khong_khop_thiet_ke(tmp_path):
 
 def test_cham_lai_lan_chay_khong_giu_fixture_khong_bien_thanh_mau_do(tmp_path):
     """Ghep lai A2 o muc duong ong, qua dung ham ma `--rescore` goi."""
-    config = config_mod.load(REPO_ROOT)
+    config = config_mod.load(DEMO_WORKSPACE)
     record = RunRecord(
         run_id=store.new_run_id("probe"), case_id="probe", skill="tidy-a-module",
         skill_version="v", model="m",

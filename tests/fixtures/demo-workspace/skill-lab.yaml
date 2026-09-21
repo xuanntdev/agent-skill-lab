@@ -1,0 +1,27 @@
+# Mot workspace gia, du that de do duoc.
+#
+# Day khong phai cau hinh cua repo skill-lab. Repo skill-lab la CONG CU; thu muc nay la mot
+# workspace ma cong cu do -- dung quan he ma mot nguoi dung that se co. Tach ra nhu vay vi khi
+# demo nam lan trong repo goc, khong ai doc ra duoc cai nao la cong cu va cai nao la du lieu thu.
+#
+# Chay tu goc repo:
+#     skill-lab --workspace tests/fixtures/demo-workspace run tidy-pass --dry
+
+workspace:
+  id: demo-workspace
+  skills: .claude/skills
+
+fixture:
+  # `copy` chu khong `git-worktree`: thu muc nay khong phai mot git repo rieng, no nam trong repo
+  # cua cong cu. Mot workspace that nen dung `auto`.
+  strategy: copy
+
+actor:
+  model: sonnet
+  max_turns: 40
+
+judge:
+  model: claude-haiku-4-5
+
+cases: cases
+runs: .skill-lab/runs
