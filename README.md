@@ -1,4 +1,4 @@
-# Skill Lab
+# Agent Skill Lab
 
 Phòng thí nghiệm cho Agent Skill: chạy một skill trong môi trường cách ly, ghi lại toàn bộ
 trajectory, chấm bằng các check tất định, chỉ ra **bước sai đầu tiên**, quy trách nhiệm **kèm độ
@@ -15,7 +15,7 @@ Không phải một "skill tester". Câu hỏi nó trả lời không phải *sk
 
 Nguyên tắc chi phối mọi quyết định trong repo này:
 
-> Đừng làm Skill Lab thông minh hơn trước khi làm nó đo đúng hơn.
+> Đừng làm Agent Skill Lab thông minh hơn trước khi làm nó đo đúng hơn.
 
 ---
 
@@ -39,12 +39,16 @@ repo này (công cụ)  ──đo──>  workspace của bạn (.claude/skills/
 `tests/fixtures/demo-workspace/` là một workspace tí hon dùng cho demo và test. Nó ở trong
 `tests/` chứ không ở gốc repo, đúng vì nó là **dữ liệu thử**, không phải thứ repo này cung cấp.
 
+> **Không liên quan tới [`8ddieHu0314/Skill-Lab`](https://github.com/8ddieHu0314/Skill-Lab)** —
+> một dự án khác cùng lĩnh vực, giữ tên `skill-lab` trên PyPI. Package này tên
+> `agent-skill-lab`; lệnh của họ là `sklab`, của đây là `skill-lab`.
+
 ---
 
 ## Cài đặt
 
 ```bash
-pip install -e .
+pip install -e .          # package: agent-skill-lab · lệnh: skill-lab
 ```
 
 Một dependency duy nhất (`pyyaml`), chỉ dùng để đọc case file. Kit này chạy bên trong fixture của
@@ -351,7 +355,7 @@ Bốn ràng buộc, mỗi cái vá một cách hỏng cụ thể:
    nhị phân gộp cả ba, nên một gate **đã hỏng** sẽ qua được đúng như một gate **đang chạy**.
 2. **Gate chạy bên trong fixture**, `cwd` là gốc fixture. Chạy trên host sẽ trả lời một câu hỏi về
    host, còn câu hỏi đang đặt là về chính môi trường actor sắp chạy trong đó.
-3. **Assertion chỉ được quan sát.** Skill Lab chụp dấu vân tay `(đường dẫn, kích thước, mtime)` của
+3. **Assertion chỉ được quan sát.** Agent Skill Lab chụp dấu vân tay `(đường dẫn, kích thước, mtime)` của
    cả fixture trước và sau khi chạy gate; nếu có gì đổi → `FIXTURE_INVALID` kèm danh sách file. Một
    assertion tự sửa fixture để mình xanh làm mọi con số sau đó nói về một môi trường khác.
 4. **`FIXTURE_INVALID` là kết quả thứ ba**, không phải skill thất bại và không phải lỗi công cụ.
@@ -379,7 +383,7 @@ phân biệt được ba thứ cuối: chúng gửi cho ba người khác nhau.
 
 ## Đóng góp / sửa repo này
 
-Ràng buộc dành cho người (và agent) sửa Skill Lab nằm ở **[`AGENTS.md`](AGENTS.md)**: ranh giới
+Ràng buộc dành cho người (và agent) sửa Agent Skill Lab nằm ở **[`AGENTS.md`](AGENTS.md)**: ranh giới
 sản phẩm, nguyên tắc kỹ thuật, cách kiểm chứng thay đổi, và kỷ luật phạm vi.
 
 ## Chạy test

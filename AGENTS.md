@@ -1,10 +1,10 @@
-# Skill Lab — Hướng dẫn cho AI Agent
+# Agent Skill Lab — Hướng dẫn cho AI Agent
 
 ## Ranh giới sản phẩm
 
-Skill Lab là **CLI toolkit để đánh giá và debug AI Agent Skill**.
+Agent Skill Lab là **CLI toolkit để đánh giá và debug AI Agent Skill**.
 
-Skill Lab không phải:
+Agent Skill Lab không phải:
 - Agent runtime
 - AI Agent
 - Agent Skill
@@ -12,7 +12,7 @@ Skill Lab không phải:
 - Claude Code plugin
 - Nền tảng chạy Agent production
 
-Claude Code hiện chỉ là runtime đầu tiên được Skill Lab hỗ trợ.
+Claude Code hiện chỉ là runtime đầu tiên được Agent Skill Lab hỗ trợ.
 
 ## Nguyên tắc kỹ thuật
 
@@ -39,7 +39,7 @@ Sau mỗi thay đổi:
 
 ## Kỷ luật phạm vi
 
-Không tự ý mở rộng Skill Lab thành Agent platform.
+Không tự ý mở rộng Agent Skill Lab thành Agent platform.
 
 Không triển khai thêm:
 - Optimizer

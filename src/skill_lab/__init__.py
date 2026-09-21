@@ -1,4 +1,4 @@
-"""Skill Lab -- phong thi nghiem cho Agent Skill."""
+"""Agent Skill Lab -- phong thi nghiem cho Agent Skill."""
 
 from __future__ import annotations
 

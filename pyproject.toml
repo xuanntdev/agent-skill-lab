@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "skill-lab"
+name = "agent-skill-lab"
 version = "0.1.0"
 description = "Phong thi nghiem cho Agent Skill: chay, ghi trajectory, cham tat dinh, chan doan buoc sai dau tien, so sanh hai phien ban va chan regression."
 readme = "README.md"
@@ -22,6 +22,10 @@ dependencies = ["pyyaml>=6.0"]
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
+# Ten package la `agent-skill-lab` chu khong phai `skill-lab`: ten kia da bi chiem tren PyPI boi
+# mot cong cu CUNG linh vuc (`8ddieHu0314/Skill-Lab`, "Agent Skills Evaluation Framework"). Lenh
+# go van la `skill-lab` -- no khong dung voi lenh cua ho (`sklab`), va no la thu nguoi dung go
+# hang ngay nen dang giu ngan.
 [project.scripts]
 skill-lab = "skill_lab.cli:main"
 
