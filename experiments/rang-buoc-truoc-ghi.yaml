@@ -1,0 +1,21 @@
+id: rang-buoc-truoc-ghi
+# Gia thuyet duoc viet TRUOC khi chay. Do la toan bo ly do file nay ton tai: khi gia thuyet duoc
+# viet sau, moi ket qua deu xac nhan mot gia thuyet nao do.
+hypothesis: |
+  Viet rang buoc thu tu trong `tidy-a-module` thanh mot cau menh lenh se giam so lan actor ghi
+  truoc khi doc rang buoc. Bac bo neu ty le xanh khong tang qua nguong nhieu, hoac neu case bien
+  di lui.
+
+dataset: demo
+runs: 3
+
+baseline:
+  label: "0.1.0"
+candidate:
+  label: "0.1.1-candidate"
+
+# Khai bao y dinh. `compare` doc identity that tu cac lan chay va doi chieu; hai ben lech nhau la
+# mot phat hien, khong phai mot loi cau hinh -- no co nghia la thi nghiem khong chay dung nhu da
+# thiet ke.
+changed: [skill_version]
+fixed: [model, effort, workspace_rev, case_digest]

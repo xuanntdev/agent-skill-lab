@@ -1,0 +1,18 @@
+# skill-lab.yaml cua chinh repo skill-lab -- de `run --dry` chay duoc ngay sau khi clone.
+workspace:
+  id: skill-lab
+  skills: .claude/skills
+
+fixture:
+  strategy: copy
+  exclude: [".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache", ".skill-lab", "dist", "build"]
+
+actor:
+  model: sonnet
+  max_turns: 40
+
+judge:
+  model: claude-haiku-4-5
+
+cases: cases
+runs: .skill-lab/runs

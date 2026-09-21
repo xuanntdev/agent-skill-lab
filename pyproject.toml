@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skill-lab"
+version = "0.1.0"
+description = "Phong thi nghiem cho Agent Skill: chay, ghi trajectory, cham tat dinh, chan doan buoc sai dau tien, so sanh hai phien ban va chan regression."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "xuandev" }]
+keywords = ["agent", "skill", "evaluation", "trajectory", "regression"]
+
+# Mot dependency, va no chi de doc case file. Moi thu khac la thu vien chuan.
+#
+# Day khong phai kho hanh. Bo do nay phai chay duoc trong fixture cua repo khac, va moi
+# dependency them vao la mot thu co the xung dot voi repo do hoac vang mat trong moi truong CI
+# cua no. `argparse` thay cho `typer`, `subprocess` thay cho mot SDK, `json` thay cho mot store.
+dependencies = ["pyyaml>=6.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+skill-lab = "skill_lab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+skill_lab = ["hooks/*.py", "actor.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --tb=short"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["skill_lab"]

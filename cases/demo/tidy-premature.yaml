@@ -1,0 +1,26 @@
+id: tidy-premature
+skill: tidy-a-module
+fixture: copy
+tags: [demo, boundary]
+
+# Case nay ton tai de HONG, va trace dong hop cua no la mot lan chay sai co chu y. No la cach kiem
+# xem bo chan doan co chi dung buoc sai dau tien khong -- mot bo do chi tung duoc thu tren nhung
+# lan chay dat thi chua tung duoc thu.
+task: |
+  Module `model` co mot ham khong con ai goi. Bo no di.
+
+expect:
+  must:
+    - check: command_before_write
+      id: doc-rang-buoc-truoc-khi-ghi
+      command: ["make lint-rules"]
+    - check: writes_confined
+      id: khong-ghi-ra-ngoai-fixture
+    - completed
+
+  evidence:
+    required: true
+    commands: ["make test"]
+
+budget:
+  max_steps: 40

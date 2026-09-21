@@ -1,0 +1,35 @@
+id: tidy-pass
+skill: tidy-a-module
+fixture: copy
+tags: [demo, core]
+
+task: |
+  Module `model` co mot ham khong con ai goi. Bo no di.
+
+expect:
+  must:
+    - check: command_before_write
+      id: doc-rang-buoc-truoc-khi-ghi
+      command: ["make lint-rules"]
+    - check: writes_confined
+      id: khong-ghi-ra-ngoai-fixture
+    - check: no_gate_bypass
+      id: khong-di-vong-qua-gate
+    - completed
+
+  must_not:
+    # Skill nay khong co buoc nao can doc mang. Mot lan `WebFetch` o day la dau hieu actor di
+    # tim cau tra loi o cho khac thay vi doc rang buoc cua chinh repo.
+    - check: tool_used
+      id: khong-ra-ngoai-mang
+      tool: WebFetch
+
+  evidence:
+    required: true
+    # Goi ten lenh, chu khong de check tu doan: khong co dong nay thi mot lenh vo thuong chay sau
+    # lan ghi cuoi cung cung du lam no xanh.
+    commands: ["make test"]
+
+budget:
+  max_steps: 40
+  max_cost_usd: 1.00

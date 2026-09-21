@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+
+# Lan chay la hien vat sinh ra tu mot lenh, va chung nang. Case thi nguoc lai -- case la thu duoc
+# version-control, va no song o `cases/`.
+.skill-lab/
