@@ -380,6 +380,19 @@ phân biệt được ba thứ cuối: chúng gửi cho ba người khác nhau.
   token cho tới khi bị dừng bằng tay.
 - **`num_steps` đếm cả dòng `tool_result`**, còn `num_tool_calls` chỉ đếm lời gọi. Đọc nhầm hai
   trường này sẽ ra hai con số khác nhau cho cùng một lần chạy.
+- **Chỉ chạy được với Claude Code.** `actor.cli` chỉ đặt tên binary, không phải runtime adapter:
+  [`agent.py`](src/skill_lab/agent.py) dựng argv bằng cờ riêng của Claude Code. Đã kiểm bằng probe
+  với `codex-cli 0.145.0`: hỏng ngay ở cờ đầu tiên (`error: unexpected argument '--output-format'`).
+  Codex có `exec --json` phát JSONL event stream do runtime sinh ra — thoả đúng bất biến "trace
+  không do agent tự khai" mà không cần hook — nên một adapter là khả thi, chưa làm.
+- **Cấu hình sai runtime cho ra một điểm số thay vì một lỗi.** Đặt `cli: codex` rồi chạy: Codex
+  thoát với mã 2 (lỗi parse tham số), kit đọc thành "agent bị cắt giữa chừng" và báo
+  `termination.aborted` kèm `diem: 5/7`. Hướng quy trách nhiệm đúng (`harness`) nhưng lý do sai,
+  và hướng sửa nó đề xuất sẽ vô ích.
+- **Một trace rỗng vẫn được điểm xanh.** Trong cùng lần chạy trên: `writes_confined` xanh vì không
+  có lần ghi nào, `no_gate_bypass` xanh vì không có lệnh nào, `must_not tool_used` xanh vì không
+  gọi tool nào. Ba điểm xanh rỗng nghĩa. Đáng lẽ chúng phải là `NOT_APPLICABLE`, giống cách
+  `evidence_backed` đã xử lý.
 
 ## Đóng góp / sửa repo này
 
