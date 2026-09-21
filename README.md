@@ -377,6 +377,11 @@ phân biệt được ba thứ cuối: chúng gửi cho ba người khác nhau.
 - **`num_steps` đếm cả dòng `tool_result`**, còn `num_tool_calls` chỉ đếm lời gọi. Đọc nhầm hai
   trường này sẽ ra hai con số khác nhau cho cùng một lần chạy.
 
+## Đóng góp / sửa repo này
+
+Ràng buộc dành cho người (và agent) sửa Skill Lab nằm ở **[`AGENTS.md`](AGENTS.md)**: ranh giới
+sản phẩm, nguyên tắc kỹ thuật, cách kiểm chứng thay đổi, và kỷ luật phạm vi.
+
 ## Chạy test
 
 ```bash
