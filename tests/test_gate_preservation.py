@@ -14,6 +14,7 @@ chay trong moi truong nao va tra ve gi".
 from __future__ import annotations
 
 import json
+import sys
 import textwrap
 from pathlib import Path
 
@@ -59,7 +60,7 @@ def _workspace(
         encoding="utf-8",
     )
 
-    gates = [{"command": ["python", GATE_SCRIPT], "expected_exit": expected_exit, "name": "gate-cua-workspace"}]
+    gates = [{"command": [sys.executable, GATE_SCRIPT], "expected_exit": expected_exit, "name": "gate-cua-workspace"}]
     gates += extra_gates or []
     config = {
         "workspace": {"id": "ws-test", "skills": ".claude/skills"},
@@ -220,7 +221,7 @@ def test_gate_chay_trong_fixture_chu_khong_chay_tren_workspace_goc(tmp_path):
         object.__setattr__(
             broken.fixture,
             "assert_gates",
-            (config_mod.GateSpec(command=("python", GATE_SCRIPT), expected_exit=99),),
+            (config_mod.GateSpec(command=(sys.executable, GATE_SCRIPT), expected_exit=99),),
         )
         fixture_mod.build(broken, dest)
 
@@ -240,7 +241,7 @@ def test_setup_chay_truoc_gate(tmp_path):
         gate_exit=0,
         expected_exit=7,
         gate_body="raise SystemExit(7 if os.path.exists('san-sang.txt') else 0)",
-        setup=[["python", "-c", "open('san-sang.txt','w').write('x')"]],
+        setup=[[sys.executable, "-c", "open('san-sang.txt','w').write('x')"]],
     )
     config = config_mod.load(root)
     fx = fixture_mod.build(config, tmp_path / "fx")

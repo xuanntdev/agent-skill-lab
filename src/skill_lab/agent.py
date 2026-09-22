@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from skill_lab.config import ActorConfig
+from skill_lab.fixture import TRACE_ENV
 
 
 class AgentError(Exception):
@@ -112,7 +113,7 @@ def run(
         argv += ["--append-system-prompt", system_prompt]
 
     env = dict(os.environ)
-    env["SKILL_LAB_TRACE"] = str(trace_path)
+    env[TRACE_ENV] = str(trace_path)
 
     proc = subprocess.Popen(
         argv,

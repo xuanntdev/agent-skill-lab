@@ -10,6 +10,7 @@ Moi test mo dau bang cau da do duoc truoc khi sua.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -77,7 +78,7 @@ def test_check_moi_truong_khong_chay_subprocess_khi_fixture_da_mat(tmp_path):
     """Da do duoc: mot check `shell` VAN chay `subprocess` that trong `--rescore`. Mot lenh tu nhan
     la "chi cham lai trajectory" van tao duoc file tren dia."""
     marker = tmp_path / "khong-duoc-tao.txt"
-    spec = check("shell", command=["python", "-c", f"open(r'{marker}','w').write('x')"])
+    spec = check("shell", command=[sys.executable, "-c", f"open(r'{marker}','w').write('x')"])
     result = verify.run_check(ctx_for([], tmp_path, environment=False), spec)
     assert result.status == model_mod.NOT_EVALUATED
     assert not marker.exists(), "`--rescore` da chay mot lenh that"

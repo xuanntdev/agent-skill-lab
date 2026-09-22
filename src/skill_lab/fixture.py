@@ -20,6 +20,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -56,6 +58,37 @@ class GateResult:
         return text[:160]
 
 
+def hook_interpreter() -> str:
+    """Duong dan **tuyet doi** toi interpreter se chay hook trace.
+
+    `sys.executable` truoc, va do khong phai mot so thich: hook duoc cai boi chinh tien trinh
+    Python nay, nen interpreter dang chay la thu duy nhat da duoc chung minh la ton tai va chay
+    duoc tren may nay. Moi lua chon khac deu la mot phong doan ve PATH cua mot tien trinh KHAC --
+    tien trinh `claude`, ma bien PATH cua no khong nhat thiet giong cua ai ca.
+
+    Day la cho mot defect that da nam: lenh hook tung duoc viet cung la `python "$..."`. Tren mot
+    may chi co `python3` -- Debian/Ubuntu va phan lon distro hien nay -- hook spawn fail voi exit
+    127, va Claude Code **fail-open** tren spawn fail. Hau qua khong phai mot loi: `trace.jsonl`
+    rong 0 byte, khong mot dong nao bao, va bo cham van cho nhieu check mau xanh vi "khong tim
+    thay lenh cam" tren mot trace khong co gi de tim. Do duoc that o mot lan chay E2E: 8 xanh,
+    1 do, tren mot lan chay ma actor da lam dung moi thu.
+
+    Fallback chi cho truong hop `sys.executable` rong (interpreter nhung, py2app...), va khi do
+    moi phai hoi PATH.
+    """
+    if sys.executable:
+        return sys.executable
+    for name in ("python3", "python"):
+        found = shutil.which(name)
+        if found:
+            return found
+    raise FixtureError(
+        "khong xac dinh duoc interpreter de chay hook trace: `sys.executable` rong va khong thay "
+        "`python3`/`python` tren PATH. Khong co hook thi khong co trajectory, va khong co "
+        "trajectory thi khong do duoc gi."
+    )
+
+
 class FixtureInvalid(FixtureError):
     """Fixture da dung xong nhung **khong con la moi truong ma workspace yeu cau**.
 
@@ -71,6 +104,18 @@ class FixtureInvalid(FixtureError):
         failed = [r.spec.label for r in results if not r.ok]
         detail = ", ".join(failed) or "fixture bi thay doi boi chinh gate assertion"
         super().__init__(f"FIXTURE_INVALID: {detail}")
+
+
+class InstrumentationInvalid(FixtureInvalid):
+    """Hook trace khong chay duoc, nen lan chay nay se khong ghi lai duoc gi.
+
+    Ke thua `FixtureInvalid` co chu dich: moi cho da bat `FixtureInvalid` -- runner, CLI, store --
+    xu ly no dung nhu cu (actor KHONG khoi dong, `status: fixture_invalid`, `owner: harness`), nen
+    day la mot thay doi tuong thich nguoc. Cai duoc tach ra la **nhan**: mot gate cua workspace
+    ngung cuong che va mot bo do cua chinh lab ngung ghi la hai su co gui cho hai nguoi khac nhau.
+
+    Ton tai vi lan E2E that: khong co buoc nay, mot hook hong cho ra mot bang diem thay vi mot loi.
+    """
 
 
 @dataclass(frozen=True)
@@ -200,7 +245,11 @@ def install_hook(root: Path) -> Path:
 
     # `$CLAUDE_PROJECT_DIR` duoc host thay bang goc project, tuc la fixture -- khong phai repo that.
     # Duong dan tuyet doi cua may nguoi viet se tro nguoc ve repo that va ghi trace ra ngoai fixture.
-    command = f'python "$CLAUDE_PROJECT_DIR/{HOOK_REL}"'
+    #
+    # Interpreter thi nguoc lai: tuyet doi, va lay tu `sys.executable`. Mot ten tran (`python`) la
+    # mot cau hoi dat cho PATH cua tien trinh `claude`, va cau tra loi sai o do khong ra mot loi --
+    # no ra mot trace rong. Xem `hook_interpreter`.
+    command = f'"{hook_interpreter()}" "$CLAUDE_PROJECT_DIR/{HOOK_REL}"'
     settings_path.parent.mkdir(parents=True, exist_ok=True)
     settings_path.write_text(
         json.dumps(_merge_hooks(settings, command), ensure_ascii=False, indent=2) + "\n",
@@ -209,18 +258,115 @@ def install_hook(root: Path) -> Path:
     return hook_path
 
 
+#: Ten bien moi truong bat hook len. Mot hang so, khong phai hai chuoi giong nhau o hai file: hook
+#: doc no, `agent.py` dat no, va probe duoi day gia lap ca hai -- ba ban sao cua cung mot chuoi la
+#: ba cho de chung lech nhau ma khong ai thay.
+TRACE_ENV = "SKILL_LAB_TRACE"
+
+#: Payload tong hop dung cho probe. Hinh dang giong het mot su kien `PreToolUse` that, vi probe
+#: chi dang gia hon dung bang muc no giong thu that.
+_PROBE_PAYLOAD = {
+    "hook_event_name": "PreToolUse",
+    "session_id": "skill-lab-probe",
+    "tool_name": "Bash",
+    "tool_use_id": "skill-lab-probe",
+    "tool_input": {"command": "skill-lab probe"},
+}
+
+
+def probe_hook(root: Path) -> GateResult:
+    """Chay hook vua cai, bang mot payload tong hop, va doi lai **mot dong trace doc duoc**.
+
+    Day la `assert_gates` ap cho chinh bo do. Ly do ton tai: hook `trace_hook.py` **khong bao gio
+    raise va luon exit 0** -- co y, vi mot hook lam ket lan chay thi te hon la khong do. Hau qua
+    la ma exit cua no khong chung minh duoc gi ca, nen probe nay do bang thu duy nhat co nghia:
+    file trace co them mot dong JSON hop le mang dung tool vua gui hay khong.
+
+    Ghi ra thu muc tam **ngoai fixture**, nen probe khong dong mot byte nao vao cay ma actor sap
+    chay trong do -- cung rang buoc "assertion chi duoc quan sat" ma gate assertion phai theo.
+    """
+    interpreter = hook_interpreter()
+    hook_path = root / HOOK_REL
+    spec = GateSpec(
+        command=(interpreter, str(hook_path)),
+        expected_exit=0,
+        name="hook trace cua lab ghi duoc mot dong",
+    )
+    if not hook_path.is_file():
+        return GateResult(spec=spec, actual_exit=-1, error=f"khong thay hook tai {hook_path}")
+
+    with tempfile.TemporaryDirectory(prefix="skill-lab-probe-") as tmpdir:
+        probe_trace = Path(tmpdir) / "probe.jsonl"
+        try:
+            proc = subprocess.run(
+                [interpreter, str(hook_path)],
+                input=json.dumps(_PROBE_PAYLOAD),
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+                env={**os.environ, TRACE_ENV: str(probe_trace)},
+            )
+        except OSError as exc:
+            return GateResult(spec=spec, actual_exit=-1, error=f"khong chay duoc {interpreter!r}: {exc}")
+        except subprocess.SubprocessError as exc:
+            return GateResult(spec=spec, actual_exit=-1, error=f"khong chay duoc: {exc}")
+
+        stderr = (proc.stderr or "")[-400:]
+        if proc.returncode != 0:
+            return GateResult(
+                spec=spec,
+                actual_exit=proc.returncode,
+                stderr=stderr,
+                error=f"hook thoat voi ma {proc.returncode}",
+            )
+        if not probe_trace.is_file():
+            return GateResult(
+                spec=spec, actual_exit=0, stderr=stderr, error="hook chay xong nhung khong tao file trace"
+            )
+        body = probe_trace.read_text(encoding="utf-8").strip()
+        if not body:
+            return GateResult(
+                spec=spec, actual_exit=0, stderr=stderr, error="hook chay xong nhung khong ghi dong nao"
+            )
+        try:
+            row = json.loads(body.splitlines()[0])
+        except json.JSONDecodeError as exc:
+            return GateResult(spec=spec, actual_exit=0, stderr=stderr, error=f"dong trace khong phai JSON: {exc}")
+        if row.get("tool") != _PROBE_PAYLOAD["tool_name"]:
+            return GateResult(
+                spec=spec,
+                actual_exit=0,
+                stderr=stderr,
+                error=f"dong trace khong mang tool da gui (nhan {row.get('tool')!r})",
+            )
+    return GateResult(spec=spec, actual_exit=0, stdout="hook ghi duoc 1 dong trace hop le")
+
+
 def _run_setup(config: Config, root: Path) -> None:
     for argv in config.fixture.setup:
-        proc = subprocess.run(
-            list(argv),
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            check=False,
-            env={**os.environ, **config.fixture.env},
-        )
+        try:
+            proc = subprocess.run(
+                list(argv),
+                cwd=str(root),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+                env={**os.environ, **config.fixture.env},
+            )
+        except FileNotFoundError as exc:
+            # `setup` la argv cua nguoi dung, chay nguyen van -- nen `["python", ...]` tren mot may
+            # chi co `python3` chet o day. Dich thanh `FixtureError` co ten binary trong thong bao:
+            # `FileNotFoundError` tho di len toi runner se thanh `status: error` ("cong cu hong"),
+            # mot nhan sai cho mot dong cau hinh sai.
+            raise FixtureError(
+                f"lenh setup {' '.join(argv)} khong chay duoc: {argv[0]!r} khong ton tai ({exc.strerror})"
+            ) from exc
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or "").strip()[:400]
             raise FixtureError(f"lenh setup {' '.join(argv)} exit {proc.returncode}: {detail}")
@@ -323,6 +469,14 @@ def build(config: Config, dest: Path) -> Fixture:
         raise FixtureError(f"khong biet chien luoc fixture {strategy!r}")
 
     install_hook(fixture_root)
+
+    # Probe NGAY sau khi cai, truoc `setup` (co the cham) va truoc gate: neu bo do cua chinh lab
+    # khong ghi duoc thi moi thu sau do deu vo nghia, va dung lai som la re nhat. Thu tu day du:
+    #   dung fixture -> merge hook -> PROBE HOOK -> fixture.setup -> assert_gates -> actor
+    probe = probe_hook(fixture_root)
+    if not probe.ok:
+        raise InstrumentationInvalid([probe])
+
     _run_setup(config, fixture_root)
     (fixture_root / ".skill-lab").mkdir(parents=True, exist_ok=True)
 

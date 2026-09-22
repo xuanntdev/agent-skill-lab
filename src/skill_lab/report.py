@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
+from skill_lab import diagnose as diagnose_mod
 from skill_lab import model as model_mod
 from skill_lab import taxonomy
 from skill_lab.compare import Comparison
@@ -47,6 +48,14 @@ def run_header(record: RunRecord) -> str:
 
 def run_status(record: RunRecord) -> str:
     if record.completed:
+        if record.num_tool_calls == 0:
+            # Dong nay phai to hon mot con so 0 trong ngoac. Truoc khi co no, mot lan chay khong
+            # ghi duoc gi doc y het mot lan chay sach se, va cai dap vao mat nguoi doc la bang
+            # check ben duoi -- ma bang do luc ay toan mau xanh.
+            return (
+                "actor: ket thuc binh thuong nhung KHONG GHI DUOC TOOL CALL NAO. "
+                "Moi check doc tu trajectory deu khong cham duoc -- xem chan doan."
+            )
         return f"actor: ket thuc binh thuong ({record.num_tool_calls} tool call duoc ghi)"
     return (
         f"actor: KHONG HOAN TAT -- exit {record.exit_code}, {record.num_tool_calls} tool call duoc ghi. "
@@ -99,6 +108,22 @@ def diagnosis_block(diag: Diagnosis) -> str:
         if diag.undecided:
             lines.append(f"  chua cham duoc      {', '.join(diag.undecided)}")
         return "\n".join(lines)
+    if diag.verdict == diagnose_mod.NO_EVIDENCE:
+        # Khong in "buoc sai dau tien": khong co buoc nao ca, va in mot dong trong o do se moi
+        # nguoi doc di tim mot buoc khong ton tai.
+        lines = [f"chan doan: {diag.summary}"]
+        lines.append(f"  phan loai           {diag.category} -- {taxonomy.describe(diag.category)}")
+        lines.append(f"  ai phai sua         {diag.owner} (do tin cay: {diag.confidence})")
+        for item in diag.evidence:
+            lines.append(f"    - {item}")
+        if diag.hypothesis:
+            lines.append(f"  gia thuyet          {diag.hypothesis}")
+        if diag.suggestion:
+            lines.append(f"  huong sua           {diag.suggestion}")
+        if diag.undecided:
+            lines.append(f"  chua cham duoc      {', '.join(diag.undecided)}")
+        return "\n".join(lines)
+
     lines = ["chan doan:"]
     if diag.first_error_step is not None:
         lines.append(f"  buoc sai dau tien   {diag.first_error_step}  (check `{diag.first_error_check}`)")

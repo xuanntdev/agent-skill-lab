@@ -22,7 +22,7 @@ from skill_lab import agent as agent_mod
 from skill_lab import diagnose as diagnose_mod
 from skill_lab import fixture as fixture_mod
 from skill_lab import judge as judge_mod
-from skill_lab import store, trace, verify
+from skill_lab import store, taxonomy, trace, verify
 from skill_lab.case import Case
 from skill_lab.config import Config
 from skill_lab.model import RunRecord, call_steps, skill_version
@@ -84,13 +84,26 @@ def _fixture_invalid_diagnosis(record: RunRecord, invalid) -> diagnose_mod.Diagn
     """
     diag = diagnose_mod.Diagnosis(run_id=record.run_id)
     diag.verdict = "FIXTURE_INVALID"
-    diag.category = "harness.gate_not_enforced"
     diag.owner = "harness"
     diag.confidence = diagnose_mod.HIGH
-    diag.summary = (
-        "Fixture khong con la moi truong ma workspace yeu cau, nen actor khong duoc khoi dong. "
-        "Day khong phai mot phat bieu ve skill."
-    )
+
+    # Hai su co, hai nguoi nhan. Mot gate cua workspace ngung cuong che la viec cua nguoi giu
+    # workspace; hook trace cua lab ngung ghi la viec cua nguoi bao tri lab. Truoc khi tach ra,
+    # ca hai deu doc thanh "fixture hong" va huong sua goi y (`them buoc vao fixture.setup`) vo
+    # ich voi truong hop thu hai.
+    if isinstance(invalid, fixture_mod.InstrumentationInvalid):
+        diag.category = "harness.instrumentation_failed"
+        diag.summary = (
+            "Hook ghi trajectory cua lab khong chay duoc trong fixture, nen actor khong duoc khoi "
+            "dong. Chay tiep se cho ra mot trace rong, va mot trace rong doc giong het mot skill "
+            "khong lam gi sai."
+        )
+    else:
+        diag.category = "harness.gate_not_enforced"
+        diag.summary = (
+            "Fixture khong con la moi truong ma workspace yeu cau, nen actor khong duoc khoi dong. "
+            "Day khong phai mot phat bieu ve skill."
+        )
     for result in invalid.results:
         mark = "dat" if result.ok else "KHONG DAT"
         diag.evidence.append(
@@ -100,14 +113,25 @@ def _fixture_invalid_diagnosis(record: RunRecord, invalid) -> diagnose_mod.Diagn
         )
     for item in invalid.mutated:
         diag.evidence.append(f"gate assertion da SUA fixture: {item}")
-    diag.hypothesis = (
-        "Gate cua workspace khong con hieu luc ben trong fixture. Kiem `fixture.setup` truoc, "
-        "roi toi chinh gate."
-    )
-    diag.suggested_change = (
-        "Bo sung buoc cai dat con thieu vao `fixture.setup`, hoac sua lai `expected_exit` neu gate "
-        "da doi hanh vi mot cach co chu y."
-    )
+    if isinstance(invalid, fixture_mod.InstrumentationInvalid):
+        diag.hypothesis = (
+            "Hook trace khong chay duoc bang interpreter da cai. Kiem `sys.executable` cua tien "
+            "trinh dang chay `skill-lab`, roi toi quyen chay cua file hook trong fixture."
+        )
+        diag.suggested_change = taxonomy.suggestion(diag.category)
+    else:
+        diag.hypothesis = (
+            "Gate cua workspace khong con hieu luc ben trong fixture. Kiem `fixture.setup` truoc, "
+            "roi toi chinh gate."
+        )
+        # Ve thu hai khong thua, va `taxonomy.suggestion` khong mang no: mot gate co the tra ma
+        # exit khac vi no DA DOI HANH VI mot cach co chu y -- hoac vi verdict cua no phu thuoc
+        # trang thai, nhu mot gate doc mot ban ghi task het han sau 12h. Da gap that; khi do viec
+        # can lam la sua `expected_exit`, khong phai them buoc vao `setup`.
+        diag.suggested_change = (
+            "Bo sung buoc cai dat con thieu vao `fixture.setup`, hoac sua lai `expected_exit` neu "
+            "gate da doi hanh vi mot cach co chu y."
+        )
     diag.suggestion = diag.suggested_change
     return diag
 

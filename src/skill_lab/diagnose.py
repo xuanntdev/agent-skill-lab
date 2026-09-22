@@ -20,7 +20,15 @@ from dataclasses import asdict, dataclass, field
 from typing import Sequence
 
 from skill_lab import taxonomy
-from skill_lab.model import WEAK_EVIDENCE, CheckResult, RunRecord, Step, call_steps, result_of
+from skill_lab.model import (
+    UNDECIDED,
+    WEAK_EVIDENCE,
+    CheckResult,
+    RunRecord,
+    Step,
+    call_steps,
+    result_of,
+)
 
 #: Mot chan doan noi ro no chac den dau, va con so do duoc suy tu **do neo cua bang chung**, khong
 #: tu cam giac.
@@ -223,12 +231,78 @@ def _apply_repository(diag: Diagnosis, step: Step, *, confidence: str, anchored:
     diag.suggestion = diag.suggested_change
 
 
+#: Verdict rieng cho "khong ghi duoc bang chung nao". Khong phai `PASS` (khong co gi duoc chung
+#: minh) va khong phai `FAIL` (khong co gi bi bac bo) -- gop vao mot trong hai deu la noi nhieu hon
+#: bang chung. Tach ra la de mot scheduled job gui no cho nguoi bao tri bo do, khong cho nguoi viet
+#: skill.
+NO_EVIDENCE = "NO_EVIDENCE"
+
+
+def _no_trajectory(
+    record: RunRecord, checks: Sequence[CheckResult], steps: Sequence[Step]
+) -> bool:
+    """Actor CHAY XONG, trace rong, VA case nay co hoi mot cau ma chi trajectory tra loi duoc.
+
+    Ba ve, va bo bat ve nao cung sai:
+
+    * **`record.completed`** -- mot lan chay bi cat giua chung cung de lai trace rong, nhung o do
+      *co* bang chung: chinh ma exit cua tien trinh. `termination.aborted` neo vao no voi do tin
+      cay `high`, con `no_trajectory` thi `unknown`/`low`. Doi mot chan doan neo lay mot chan doan
+      khong neo la di lui. Ve nay tung thieu, va no bien moi lan actor bi giet thanh "khong co
+      bang chung".
+    * **`not steps`** -- hien nhien.
+    * **co check `UNDECIDED`** -- mot case chi gom `completed` va ngan sach khong doc trajectory
+      dong nao, nen mot trace rong o do la binh thuong chu khong phai mot lo hong.
+    """
+    if not record.completed or steps:
+        return False
+    return any(c.status == UNDECIDED for c in checks)
+
+
+def _no_trajectory_diagnosis(record: RunRecord, diag: Diagnosis) -> Diagnosis:
+    """Khong quy trach nhiem. Hai cach doc deu con song, va bao cao phai noi ra ca hai.
+
+    Tu mot trace rong khong the tach duoc "actor that su khong goi tool nao" khoi "host khong goi
+    hook". Probe o `fixture.probe_hook` loai duoc kha nang thu hai o muc *hook chay duoc*, nhung no
+    khong chung minh duoc rang host da THUC SU goi hook trong lan chay -- nen `owner` o day la
+    `unknown`, va do la cau tra loi dung chu khong phai mot cho trong.
+    """
+    diag.verdict = NO_EVIDENCE
+    diag.category = "harness.no_trajectory"
+    diag.owner = UNKNOWN_OWNER
+    diag.confidence = LOW
+    diag.evidence.append(
+        f"actor exit {record.exit_code} sau {record.num_turns} turn, nhung trace co 0 dong"
+    )
+    if record.actor_output:
+        diag.evidence.append(f"actor van tra ve {len(record.actor_output)} ky tu output")
+    diag.summary = (
+        "Lan chay khong ghi duoc tool call nao, nen khong co gi de cham. Day khong phai mot phat "
+        "bieu ve skill: mot trace rong va mot skill dung trong y het nhau tu phia bo cham."
+    )
+    diag.hypothesis = (
+        "Gia thuyet (low): hoac actor that su khong goi tool nao, hoac host khong goi hook trace. "
+        "Probe truoc khi chay da chung minh hook chay duoc, nhung khong chung minh duoc host da goi "
+        "no -- nen hai kha nang nay chua tach duoc bang du lieu cua lan chay nay."
+    )
+    diag.suggested_change = taxonomy.suggestion(diag.category)
+    diag.suggestion = diag.suggested_change
+    return diag
+
+
 def diagnose(
     record: RunRecord, checks: Sequence[CheckResult], steps: Sequence[Step]
 ) -> Diagnosis:
     diag = Diagnosis(run_id=record.run_id)
     diag.undecided = [c.id for c in checks if c.undecided and c.status != WEAK_EVIDENCE]
     diag.weak_evidence = [c.id for c in checks if c.status == WEAK_EVIDENCE]
+
+    # Truoc moi phan quyet khac: lan chay nay co ghi lai duoc gi khong. Mot case hoi ve trajectory
+    # ma trajectory rong thi moi cau tra loi sau do deu la cau tra loi tren tap rong -- ke ca cau
+    # "khong co gi sai ca". Nhanh nay chan dung ket qua da do duoc trong lan E2E that: `8 xanh /
+    # 1 do` cong `verdict: PASS` tren mot trace 0 byte.
+    if _no_trajectory(record, checks, steps):
+        return _no_trajectory_diagnosis(record, diag)
 
     failed = _failed(checks)
     if not failed and record.completed:

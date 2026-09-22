@@ -45,11 +45,43 @@ repo này (công cụ)  ──đo──>  workspace của bạn (.claude/skills/
 
 ---
 
+## Đường ngắn nhất: từ một URL tới một con số
+
+Bốn lệnh, không phải clone tay, không `curl | bash`:
+
+```bash
+pip install git+https://github.com/xuanntdev/agent-skill-lab   # cài thẳng từ GitHub
+cd <repo có .claude/skills/>
+skill-lab doctor                                               # mọi tiền đề, không sửa gì
+skill-lab evaluate <skill> --task "<việc bạn muốn skill đó làm>"
+```
+
+`evaluate` tự làm phần còn lại: kiểm tiền đề → tìm skill → dùng case đã có (hoặc **ghi ra đĩa**
+một case smoke để bạn đọc và sửa) → chạy → chấm → chẩn đoán → báo cáo.
+
+Đo một repo bạn chưa có trên máy:
+
+```bash
+skill-lab evaluate <skill> --from-git https://github.com/<org>/<repo> --task "..."
+```
+
+**`evaluate` không đoán `--task`.** Mô tả của một skill là câu nói *khi nào kích hoạt*, không phải
+câu người dùng gõ; lấy nó làm task là đo một tình huống chưa từng xảy ra với ai. Thiếu `--task` thì
+lệnh dừng lại, in mô tả skill ra, và để bạn viết.
+
+Và case sinh tự động **chỉ chứa tiêu chí về ngăn chặn** — ghi trong phạm vi, không vòng qua gate,
+kết thúc, trong ngân sách. Nó cố ý không sinh `command_ran`/`command_order`/`delegated_to`: đoán
+ra *skill này lẽ ra phải làm gì* từ văn bản SKILL.md là tự đặt đề bài rồi tự chấm, và một bộ đo
+làm thế chỉ đo được chính nó. Những tiêu chí đó phải do người đọc SKILL.md viết.
+
 ## Cài đặt
 
 ```bash
-pip install -e .          # package: agent-skill-lab · lệnh: skill-lab
+pip install git+https://github.com/xuanntdev/agent-skill-lab   # từ GitHub
+pip install -e .                                               # từ bản clone, chế độ edit
 ```
+
+Package: `agent-skill-lab` · lệnh: `skill-lab`.
 
 Một dependency duy nhất (`pyyaml`), chỉ dùng để đọc case file. Kit này chạy bên trong fixture của
 repo khác, nên mỗi dependency thêm vào là một thứ có thể xung đột với repo đó hoặc vắng mặt trong
@@ -59,6 +91,7 @@ CI của nó.
 
 ```bash
 cd <repo có .claude/skills/>
+skill-lab doctor        # tiền đề: python, git, runtime, hook, skill, fixture
 skill-lab init          # tạo skill-lab.yaml + cases/
 skill-lab skills        # các skill tìm thấy, kèm hash phiên bản
 skill-lab run <case>    # chạy thật (tốn tiền)
@@ -86,14 +119,17 @@ package biết tên một repo cụ thể.
 | `replay <run-id>` | chạy lại case đó · `--rescore` chấm lại miễn phí, không chạm môi trường |
 | `matrix` | cùng dataset, nhiều `model/effort`, một bảng |
 | `experiment <file>` | chạy một thí nghiệm đã khai báo — giả thuyết viết trước, kết quả sau |
+| `evaluate <skill>` | skill → case → lần chạy → báo cáo, trong một lệnh |
+| `doctor` | mọi tiền đề một lần chạy cần; chỉ kiểm, không sửa gì |
 | `list` / `cases` / `skills` | những gì đang có |
 
-Trước mỗi lần chạy, `assert_gates` chứng minh môi trường còn đo được — xem *Fixture* bên dưới.
+Trước mỗi lần chạy, `assert_gates` chứng minh môi trường còn đo được, và một **probe** chứng minh
+hook trace của chính lab còn ghi được — xem *Fixture* bên dưới.
 
 ### `--dry`: chạy cả đường ống với chi phí bằng 0
 
 Đặt một file `<case>.trace.jsonl` cạnh case file, và `--dry` phát lại nó thay vì gọi model. Toàn
-bộ 89 test của kit đi qua đường này; không test nào gọi model.
+bộ 116 test của kit đi qua đường này; không test nào gọi model.
 
 ---
 
@@ -313,16 +349,18 @@ khai những lệnh cần chạy để gate của workspace thực sự hoạt �
 
 ### `assert_gates`: chứng minh, không giả định
 
-`setup` *làm cho* gate chạy được. `assert_gates` *chứng minh* rằng nó chạy được:
+`setup` *làm cho* gate chạy được. `assert_gates` *chứng minh* rằng nó chạy được — và **probe**
+làm đúng việc đó cho hook trace của chính Lab, ngay sau khi cài, trước cả `setup`: nếu bộ đo
+không ghi được thì mọi thứ sau đó đều vô nghĩa, và dừng sớm là rẻ nhất.
 
 ```yaml
 fixture:
   strategy: git-worktree
   setup:
-    - ["python", "-m", "pip", "install", "-e", "."]
+    - ["python3", "-m", "pip", "install", "-e", "."]   # tên binary có thật trên máy chạy
   assert_gates:
     - name: ghi vào repo bị chặn khi chưa có lease
-      command: ["python", "scripts/thu-ghi.py"]
+      command: ["python3", "scripts/thu-ghi.py"]
       expected_exit: 2
     - command: ["make", "lint-rules"]
       expected_exit: 1
@@ -331,7 +369,7 @@ fixture:
 Thứ tự bắt buộc:
 
 ```
-dựng fixture → cài workspace → merge hook của Lab → fixture.setup
+dựng fixture → cài workspace → merge hook của Lab → PROBE HOOK → fixture.setup
              → assert_gates → CHỈ KHI TẤT CẢ ĐẠT → actor chạy
 ```
 
@@ -362,8 +400,52 @@ Bốn ràng buộc, mỗi cái vá một cách hỏng cụ thể:
    Bản ghi mang `status: fixture_invalid`, chẩn đoán có `owner: harness`, không có check skill nào
    được chấm, và các bảng gộp bỏ qua nó.
 
-Mã thoát: `0` đạt · `1` skill đỏ · `2` công cụ hỏng · `3` FIXTURE_INVALID. Một scheduled job phải
-phân biệt được ba thứ cuối: chúng gửi cho ba người khác nhau.
+Mã thoát: `0` đạt · `1` skill đỏ · `2` công cụ hỏng · `3` FIXTURE_INVALID · `4` NO_EVIDENCE. Một
+scheduled job phải phân biệt được bốn thứ cuối: chúng gửi cho bốn người khác nhau — và `4` là thứ
+hay bị đọc nhầm nhất, vì một lần chạy không ghi được gì **không** phải một lần chạy sai.
+
+---
+
+## Trace rỗng không bao giờ là một lần chạy thành công
+
+Bất biến này không đến từ một nguyên lý. Nó đến từ một lần chạy E2E thật, ngày 2026-09-22, trên
+skill `dev-up` với một case 12 check:
+
+```
+actor: ket thuc binh thuong (0 tool call duoc ghi)
+[DO  ] co-check-port-truoc  `ss -ltn` khong he xuat hien trong trace
+[XANH] khong-start-lai      (must_not) `ptyxis` khong he xuat hien trong trace
+... 7 dòng XANH nữa ...
+diem: 11/12 check tat dinh xanh
+```
+
+`trace.jsonl` của lần chạy đó là **0 byte**. Agent đã làm đúng mọi thứ — output của nó liệt kê
+đúng 4 PID lấy từ `ss -ltnp`. Nguyên nhân: lệnh hook được đăng ký là `python "$CLAUDE_PROJECT_DIR/…"`,
+máy chỉ có `python3`, hook spawn fail 127, và Claude Code **fail-open** trên spawn fail. Một điểm
+đỏ oan và tám điểm xanh rỗng nghĩa, với giá $0.41.
+
+Ba lớp chặn, mỗi lớp vá một chỗ khác nhau:
+
+1. **Interpreter tuyệt đối.** Lệnh hook dùng `sys.executable` — interpreter đang chạy `skill-lab`,
+   thứ duy nhất đã được chứng minh là tồn tại trên máy này. Một tên trần là một câu hỏi đặt cho
+   `PATH` của tiến trình `claude`, và câu trả lời sai ở đó không ra một lỗi, nó ra một trace rỗng.
+2. **Probe trước khi chạy.** Sau khi cài hook, lab chạy chính nó bằng một payload tổng hợp và đòi
+   lại một dòng JSON hợp lệ. Đo bằng nội dung file chứ không bằng mã exit — `trace_hook.py` **luôn
+   exit 0** có chủ ý, nên mã exit của nó không chứng minh gì. Probe hỏng → `InstrumentationInvalid`,
+   actor **không khởi động**, `owner: harness`, không một check skill nào được chấm.
+3. **Cổng chặn ở bộ chấm.** Mọi check đọc trajectory trả `UNDECIDED` khi trace rỗng, và cổng đó đặt
+   **trước** `negate` — vì `must_not` mới là chỗ điểm xanh giả sinh ra nhiều nhất: "không được làm
+   X" tự động xanh khi không quan sát được gì cả. `completed` và `max_cost_usd`/`max_duration_s` thì
+   không bị chặn: chúng đọc envelope của CLI, thứ vẫn có thật khi trajectory vắng mặt.
+
+Bốn tình huống, bốn nhãn khác nhau — gộp bất kỳ hai cái nào cũng là gửi nhầm người:
+
+| Tình huống | Nhãn | Ai phải sửa | Mã thoát |
+|---|---|---|---|
+| Hook không chạy được | `harness.instrumentation_failed`, actor không khởi động | harness | 3 |
+| Actor bị cắt giữa chừng | `termination.aborted` / `termination.turn_limit` | harness | 1 |
+| Chạy xong, không ghi được gì | `harness.no_trajectory`, verdict `NO_EVIDENCE` | **unknown** (`low`) | 4 |
+| Chạy xong, hành vi sai | nhãn theo check đã vỡ | thường là skill | 1 |
 
 ---
 
@@ -389,10 +471,32 @@ phân biệt được ba thứ cuối: chúng gửi cho ba người khác nhau.
   thoát với mã 2 (lỗi parse tham số), kit đọc thành "agent bị cắt giữa chừng" và báo
   `termination.aborted` kèm `diem: 5/7`. Hướng quy trách nhiệm đúng (`harness`) nhưng lý do sai,
   và hướng sửa nó đề xuất sẽ vô ích.
-- **Một trace rỗng vẫn được điểm xanh.** Trong cùng lần chạy trên: `writes_confined` xanh vì không
-  có lần ghi nào, `no_gate_bypass` xanh vì không có lệnh nào, `must_not tool_used` xanh vì không
-  gọi tool nào. Ba điểm xanh rỗng nghĩa. Đáng lẽ chúng phải là `NOT_APPLICABLE`, giống cách
-  `evidence_backed` đã xử lý.
+- **Một trace rỗng vẫn không tách được "actor không gọi tool nào" khỏi "host không gọi hook".**
+  Probe chứng minh hook *chạy được*, không chứng minh host *đã gọi* nó — nên `NO_EVIDENCE` để
+  `owner: unknown` với độ tin cậy `low` thay vì chỉ tay vào ai. Đây là giới hạn còn lại sau khi
+  bất biến trace-rỗng đã chặn được điểm xanh giả (xem mục trên).
+- **Một check có thể xanh chỉ vì không quan sát thấy hành vi nào để chấm.** `writes_confined`
+  xanh trên một lần chạy không ghi gì, `no_gate_bypass` xanh khi không lệnh nào khớp mẫu,
+  `no_broad_discovery` xanh khi không có Grep/Glob nào. Cả ba đều đúng về mặt chữ nghĩa và đều
+  rỗng nghĩa: đúng ra chúng phải là `NOT_APPLICABLE` — "điều kiện của check không tồn tại trong
+  lần chạy này" — giống cách `evidence_backed` đã xử lý.
+
+  Bất biến trace-rỗng ở trên chỉ bịt trường hợp **không có dòng nào cả**; một trace *có* tool call
+  nhưng không có lần ghi nào thì vẫn cho `PASS`. Điều này đáng để mắt nhất ở case smoke mà
+  `skill-lab evaluate` sinh ra, vì nó gồm đúng `writes_confined` + `no_gate_bypass` + `completed`:
+  "3/3 xanh" ở đó nghĩa là *không quan sát thấy gì xấu*, không phải *skill làm đúng việc của nó*.
+  Đọc số đó như lời khẳng định thứ hai là overclaim.
+
+- **`command_ran` khớp chuỗi con trên cả dòng lệnh, nên nó không phân biệt "chạy X" với "nhắc tên
+  X".** Đo được **hai lần** trên cùng một case, và cả hai đều là false FAIL trên một lần chạy mà
+  agent làm đúng: needle `run-local.sh` khớp một lệnh `ls` liệt kê thư mục, rồi needle `ptyxis`
+  khớp một lệnh `which ptyxis`. Cả hai lần port đều không đổi — không gì được start.
+
+  Cách chữa hiện có là viết needle cho chặt, và `command:` nhận **một danh sách needle phải cùng
+  có mặt trên một dòng lệnh**, nên `["setsid -f", "ptyxis"]` diễn đạt được "đã start" mà `which`
+  hay `grep` không khớp vào. Nhưng đó vẫn là đập chuột: `command_ran` đang đo *chuỗi xuất hiện*
+  trong khi tên nó nói *lệnh đã chạy*. Một chế độ khớp ở vị trí lời gọi thì chưa làm — nó cần
+  thiết kế riêng, không phải một tham số thêm vào.
 
 ## Đóng góp / sửa repo này
 
@@ -405,5 +509,5 @@ sản phẩm, nguyên tắc kỹ thuật, cách kiểm chứng thay đổi, và 
 pytest
 ```
 
-89 test, không test nào gọi model. Mỗi lỗi từng tìm ra đều có một regression test, và test đó mở
+116 test, không test nào gọi model. Mỗi lỗi từng tìm ra đều có một regression test, và test đó mở
 đầu bằng câu mô tả điều đã đo được **trước khi** sửa.
