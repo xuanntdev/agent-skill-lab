@@ -122,6 +122,35 @@ Check = Callable[[VerifyContext, dict], "tuple[str, str, int | None]"]
 #: ngoai tat dinh -- va do khong phai mot tinh chat bo do nay duoc phep hua thay cho chung.
 ENVIRONMENT_CHECKS = frozenset({"file_exists", "file_contains", "shell"})
 
+#: Cac check ma phan quyet cua chung **doc tu trajectory**. Mot trace rong khong chung minh duoc
+#: dieu gi cho bat ky cai nao trong danh sach nay, nen khi khong co dong nao chung tra `UNDECIDED`
+#: thay vi mot phan quyet.
+#:
+#: Day la bat bien "trace rong != thuc thi thanh cong", va no ton tai vi mot lan chay E2E that da
+#: cho ra `8 xanh / 1 do` tren mot `trace.jsonl` 0 byte. Tam xanh do khong phai mot loi doc: moi
+#: cai deu dung ve mat chu nghia -- "`ptyxis` khong he xuat hien trong trace", "khong lan ghi nao
+#: roi ra ngoai", "khong lenh nao di vong qua gate" -- va tat ca deu dung y het the neu actor chua
+#: bao gio chay. Mot cau dung tren tap rong khong phai mot bang chung, va `must_not` la cho no doc
+#: nhat: mot check "khong duoc lam X" tu dong xanh khi khong quan sat duoc gi ca.
+#:
+#: `max_steps` nam trong day vi no dem `ctx.calls`. `completed`, `max_cost_usd`, `max_duration_s`
+#: thi KHONG: chung doc envelope cua CLI, thu van co that khi trajectory vang mat.
+TRAJECTORY_CHECKS = frozenset(
+    {
+        "command_ran",
+        "command_order",
+        "command_before_write",
+        "delegated_to",
+        "no_broad_discovery",
+        "no_main_edit",
+        "no_gate_bypass",
+        "writes_confined",
+        "tool_used",
+        "evidence_backed",
+        "max_steps",
+    }
+)
+
 
 # ── nhung manh dung chung ────────────────────────────────────────────────────────
 #
@@ -545,6 +574,21 @@ def run_check(ctx: VerifyContext, spec: CheckSpec) -> CheckResult:
                 f"`{spec.kind}` can fixture con song. Lan chay nay khong giu fixture, nen check nay "
                 "khong duoc cham -- chay lai voi `--keep` neu can cham lai no"
             ),
+        )
+
+    # Cong thu hai, cung hinh dang voi cong tren va cung ly do: mot check khong co du lieu de doc
+    # phai noi "toi khong cham duoc", khong duoc muon mau xanh de noi. Dat TRUOC `negate` -- mot
+    # `must_not` tren tap rong la dung cai da sinh ra tam xanh gia trong lan E2E.
+    if spec.kind in TRAJECTORY_CHECKS and not ctx.steps:
+        return CheckResult.of(
+            UNDECIDED,
+            id=spec.id,
+            kind=spec.kind,
+            why=(
+                f"`{spec.kind}` doc tu trajectory, ma lan chay nay khong ghi duoc dong nao. "
+                "Khong co gi de phan quyet -- day khong phai mot phat bieu ve skill"
+            ),
+            category=taxonomy.category_for(spec.kind),
         )
 
     status, why, at_step = fn(ctx, spec.params)

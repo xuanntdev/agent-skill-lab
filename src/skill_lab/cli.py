@@ -34,6 +34,10 @@ EXIT_ERROR = 2
 #: mot cong cu hong thi bao cho nguoi bao tri kit, con mot fixture khong hop le thi bao cho nguoi
 #: giu workspace -- va gop chung vao mot ma se gui sai nguoi o hai trong ba truong hop.
 EXIT_FIXTURE_INVALID = 3
+#: Ma rieng cho "actor chay xong ma khong ghi duoc bang chung nao". Khong phai 1: khong co gi cua
+#: skill bi bac bo. Khong phai 0: cung khong co gi duoc chung minh. Mot lan chay nhu the can mot
+#: lan chay lai, khong can mot commit sua skill.
+EXIT_NO_EVIDENCE = 4
 
 STARTER_CONFIG = """\
 # skill-lab.yaml -- thu duy nhat skill-lab biet ve workspace nay.
@@ -58,9 +62,13 @@ fixture:
   # mang ba nghia khac nhau, va mot co nhi phan se cho mot gate DA HONG qua duoc dung nhu mot
   # gate DANG CHAY.
   #
+  # `command` chay nguyen van, khong qua shell va khong phan giai ho ten binary: dat `python` o
+  # day tren mot may chi co `python3` se lam gate khong chay duoc, va mot gate khong chay duoc la
+  # mot gate khong gac.
+  #
   # assert_gates:
   #   - name: ghi vao repo bi chan khi chua co lease
-  #     command: ["python", "scripts/thu-ghi.py"]
+  #     command: ["python3", "scripts/thu-ghi.py"]
   #     expected_exit: 2
 
 actor:
@@ -103,6 +111,8 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     failures = 0
     invalid = 0
+    #: Case chay xong ma khong ghi duoc trajectory nao -- dem rieng, khong gop vao `failures`.
+    blind = 0
     for case in cases:
         try:
             record, directory = runner.execute(
@@ -140,15 +150,26 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(report.diagnosis_block(diagnose_mod.Diagnosis(**diagnosis)))
         print()
         print(f"luu tai: {directory}")
-        if diagnosis.get("verdict") != "PASS":
+        verdict = diagnosis.get("verdict")
+        if verdict == diagnose_mod.NO_EVIDENCE:
+            blind += 1
+        elif verdict != "PASS":
             failures += 1
 
     if len(cases) > 1:
         print()
-        print(f"tong: {len(cases) - failures - invalid}/{len(cases)} case dat" + (f", {invalid} FIXTURE_INVALID" if invalid else ""))
+        tail = f", {invalid} FIXTURE_INVALID" if invalid else ""
+        tail += f", {blind} NO_EVIDENCE" if blind else ""
+        print(f"tong: {len(cases) - failures - invalid - blind}/{len(cases)} case dat{tail}")
     if invalid:
         return EXIT_FIXTURE_INVALID
-    return EXIT_OK if failures == 0 else EXIT_FAILED
+    if failures:
+        return EXIT_FAILED
+    # Sau `failures`, khong truoc: mot case do that van la tin quan trong hon mot case khong do
+    # duoc, va mot lenh chi tra ve duoc mot ma.
+    if blind:
+        return EXIT_NO_EVIDENCE
+    return EXIT_OK
 
 
 # ── debug ───────────────────────────────────────────────────────────────────────

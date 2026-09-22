@@ -67,6 +67,14 @@ SUBCATEGORIES: dict[str, tuple[str, str]] = {
         "gate ma workspace yeu cau khong con hieu luc ben trong fixture",
         "bo sung buoc cai dat con thieu vao `fixture.setup`; dung chay actor cho toi khi gate xanh",
     ),
+    "harness.instrumentation_failed": (
+        "hook ghi trajectory cua chinh lab khong chay duoc, nen lan chay se khong ghi lai gi",
+        "sua duong cai hook (interpreter, quyen chay, duong dan); dung chay actor khi probe con do",
+    ),
+    "harness.no_trajectory": (
+        "actor ket thuc nhung khong mot tool call nao duoc ghi",
+        "kiem hook truoc (probe co qua khong), roi moi hoi actor co that su khong goi tool nao",
+    ),
     "harness.tool_failure": (
         "tool that bai lap lai va lan chay khong hoi phuc duoc",
         "sua tool hoac them duong hoi phuc; day khong phai loi cua skill",

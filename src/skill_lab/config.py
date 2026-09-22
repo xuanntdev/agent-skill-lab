@@ -16,7 +16,7 @@ fixture:
   strategy: git-worktree
   exclude: [".venv", "node_modules"]
   setup:
-    - ["python", "-m", "pip", "install", "-e", "."]
+    - ["python3", "-m", "pip", "install", "-e", "."]
 actor:
   model: sonnet
   max_turns: 40

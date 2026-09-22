@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -44,7 +45,7 @@ def _run_hook(hook: Path, payload: dict, trace_path: Path | None) -> subprocess.
     if trace_path is not None:
         env["SKILL_LAB_TRACE"] = str(trace_path)
     return subprocess.run(
-        ["python", str(hook)],
+        [sys.executable, str(hook)],
         input=json.dumps(payload),
         text=True,
         env=env,
@@ -137,7 +138,7 @@ def test_hook_khong_bao_gio_lam_hong_lan_chay_no_dang_quan_sat(built):
     assert result.returncode == 0
 
     proc = subprocess.run(
-        ["python", str(fx.root / fixture_mod.HOOK_REL)],
+        [sys.executable, str(fx.root / fixture_mod.HOOK_REL)],
         input="{khong phai json}",
         text=True,
         env={**os.environ, "SKILL_LAB_TRACE": str(fx.trace_path)},
