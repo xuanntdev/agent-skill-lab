@@ -339,3 +339,154 @@ def test_bao_cao_noi_thang_ra_rang_khong_ghi_duoc_tool_call_nao():
 
     record = _record(exit_code=0, completed=True, num_tool_calls=0)
     assert "KHONG GHI DUOC TOOL CALL NAO" in report.run_status(record)
+
+
+# ── 5. Doctor: cung cau hoi, hoi truoc khi ton tien ─────────────────────────
+
+
+def test_doctor_bat_duoc_dung_lo_hong_da_lam_trace_rong(monkeypatch, tmp_path):
+    """Gia tri cua doctor nam o day: tra loi cau "hook co ghi duoc khong" trong mot giay, thay vi
+    sau mot lan chay 45 giay tra ve mot bang diem sai."""
+    from skill_lab import doctor
+
+    monkeypatch.setattr(fixture_mod, "hook_interpreter", lambda: str(tmp_path / "khong-ton-tai"))
+    finding = doctor.check_hook()
+    assert finding.status == doctor.BAD
+    assert not finding.ok
+
+
+def test_doctor_khong_dong_vao_workspace(tmp_path):
+    """Doctor chay duoc giua mot phien dang lam viec, nen no khong duoc ghi gi vao workspace."""
+    from skill_lab import config as cfg_mod
+    from skill_lab import doctor
+
+    ws = tmp_path / "ws"
+    shutil.copytree(DEMO_WORKSPACE, ws)
+    before = fixture_mod._fingerprint(ws, exclude={".skill-lab", ".git", "__pycache__"})
+    doctor.run(cfg_mod.load(ws))
+    after = fixture_mod._fingerprint(ws, exclude={".skill-lab", ".git", "__pycache__"})
+    assert fixture_mod._diff_fingerprint(before, after) == []
+
+
+def test_doctor_bat_duoc_binary_khong_ton_tai_trong_setup(tmp_path):
+    """Dung ho defect anh em cua bug goc: `setup: [["python", ...]]` tren may chi co `python3`."""
+    from skill_lab import config as cfg_mod
+    from skill_lab import doctor
+
+    ws = tmp_path / "ws"
+    shutil.copytree(DEMO_WORKSPACE, ws)
+    (ws / "skill-lab.yaml").write_text(
+        "workspace: {id: t, skills: .claude/skills}\n"
+        "fixture:\n"
+        "  strategy: copy\n"
+        "  setup: [[khong-ton-tai-binary-nao, '-c', 'pass']]\n"
+        "cases: cases\nruns: .skill-lab/runs\n",
+        encoding="utf-8",
+    )
+    findings = doctor.check_fixture(cfg_mod.load(ws))
+    assert any(f.status == doctor.BAD and "khong-ton-tai-binary-nao" in f.detail for f in findings)
+
+
+# ── 6. evaluate: khong bia ra ky vong ───────────────────────────────────────
+
+
+def test_case_sinh_ra_khong_chua_ky_vong_ve_hanh_vi_cua_skill():
+    """Rang buoc trung tam cua `evaluate`. Mot case sinh tu dong chi duoc mang tieu chi ve ngan
+    chan (ghi trong pham vi, khong vong qua gate, ket thuc, ngan sach). Doan ra `command_ran` tu
+    van ban SKILL.md la bia de bai roi tu cham no."""
+    from skill_lab import evaluate as ev
+
+    doc = ev.SkillDoc(name="demo", description="mo ta gi do", path=Path("SKILL.md"))
+    body = ev.case_body(doc, "lam viec X", fixture="copy", max_cost=1.0)
+    for fabricated in ("command_ran", "command_order", "delegated_to", "tool_used"):
+        assert f"check: {fabricated}" not in body, f"case sinh ra dang bia ky vong: {fabricated}"
+    assert "writes_confined" in body and "no_gate_bypass" in body and "completed" in body
+
+
+def test_evaluate_khong_lay_mo_ta_skill_lam_task():
+    """`description` la cau ve *khi nao kich hoat*, khong phai cau nguoi dung go. Dung no lam task
+    la do mot tinh huong chua tung xay ra voi ai."""
+    from skill_lab import evaluate as ev
+
+    doc = ev.SkillDoc(name="demo", description="Trigger 'start dev', 'chay he thong'", path=Path("SKILL.md"))
+    hint = ev.task_hint(doc)
+    assert "--task" in hint
+    body = ev.case_body(doc, "TASK-THAT-CUA-NGUOI-DUNG", fixture="copy", max_cost=1.0)
+    assert "TASK-THAT-CUA-NGUOI-DUNG" in body
+    assert doc.description not in body
+
+
+def test_evaluate_uu_tien_case_da_viet_tay(tmp_path):
+    """Sinh de len mot case viet tay se thay mot phep do that bang mot phep do nong hon."""
+    from skill_lab import config as cfg_mod
+    from skill_lab import evaluate as ev
+
+    ws = tmp_path / "ws"
+    shutil.copytree(DEMO_WORKSPACE, ws)
+    cfg = cfg_mod.load(ws)
+    found = ev.existing_cases(cfg, "tidy-a-module")
+    assert {c.id for c in found} >= {"tidy-pass", "tidy-premature"}
+
+
+# ── 7. Ba lo hong bat duoc trong luot review truoc khi push ─────────────────
+
+
+def test_ten_skill_sai_khong_ra_traceback_va_khong_mang_ma_cua_skill_do():
+    """Go sai ten skill la loi dau vao, khong phai mot that bai cua skill.
+
+    Truoc khi sua, `EvaluateError` khong nam trong `except` cua `main()`: lenh in ra traceback roi
+    thoat voi ma 1 -- dung ma ma README dinh nghia la "skill do".
+    """
+    from skill_lab import cli
+
+    code = cli.main(["--workspace", str(DEMO_WORKSPACE), "evaluate", "khong-ton-tai-skill"])
+    assert code == cli.EXIT_ERROR
+    assert code != cli.EXIT_FAILED
+
+
+def test_doctor_khong_goi_fixture_none_la_copy(tmp_path):
+    """`none` nghia la actor chay thang trong workspace. Goi no la `copy` la noi sai theo dung
+    huong khong duoc phep sai: nguoi doc tin rang cay lam viec cua ho duoc bao ve."""
+    from skill_lab import config as cfg_mod
+    from skill_lab import doctor
+
+    ws = tmp_path / "ws"
+    shutil.copytree(DEMO_WORKSPACE, ws)
+    (ws / "skill-lab.yaml").write_text(
+        "workspace: {id: t, skills: .claude/skills}\n"
+        "fixture:\n  strategy: none\n"
+        "cases: cases\nruns: .skill-lab/runs\n",
+        encoding="utf-8",
+    )
+    finding = doctor.check_fixture(cfg_mod.load(ws))[0]
+    assert "copy" not in finding.detail
+    assert "khong co cach ly" in finding.detail
+    assert finding.status == doctor.WARN
+
+
+def test_clone_hong_thi_don_thu_muc_tam_con_clone_duoc_thi_giu(tmp_path, monkeypatch):
+    """Hai duong, hai cach xu ly -- va chung khong doi xung.
+
+    Mot clone hong khong chua bang chung nao de giu (`git clone` van tao san thu muc truoc khi bo
+    cuoc, nen moi URL sai de lai mot thu muc rong). Mot clone thanh cong thi chua ca `cases/` lan
+    `.skill-lab/runs/` cua lan chay, nen duong do khong bao gio duoc xoa.
+    """
+    from skill_lab import evaluate as ev
+
+    # Thu muc tam rieng cho test nay. Do bang `/tmp` that se bien ket qua thanh mot phat bieu ve
+    # rac cua may dang chay, khong ve ham dang duoc kiem.
+    sandbox = tmp_path / "tmp"
+    sandbox.mkdir()
+    monkeypatch.setattr(tempfile, "tempdir", str(sandbox))
+
+    with pytest.raises(ev.EvaluateError):
+        ev.clone_workspace("https://example.invalid/khong-ton-tai.git")
+    assert list(sandbox.iterdir()) == [], "clone hong van de lai thu muc tam"
+
+    # Duong thanh cong: `dest` do nguoi goi so huu thi khong bao gio bi ham nay xoa.
+    dest = tmp_path / "giu-lai"
+    dest.mkdir()
+    (dest / "bang-chung.txt").write_text("x", encoding="utf-8")
+    with pytest.raises(ev.EvaluateError):
+        ev.clone_workspace("https://example.invalid/khong-ton-tai.git", dest)
+    assert (dest / "bang-chung.txt").is_file(), "da xoa thu muc ma nguoi goi so huu"

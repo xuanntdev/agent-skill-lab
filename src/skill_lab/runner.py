@@ -118,12 +118,20 @@ def _fixture_invalid_diagnosis(record: RunRecord, invalid) -> diagnose_mod.Diagn
             "Hook trace khong chay duoc bang interpreter da cai. Kiem `sys.executable` cua tien "
             "trinh dang chay `skill-lab`, roi toi quyen chay cua file hook trong fixture."
         )
+        diag.suggested_change = taxonomy.suggestion(diag.category)
     else:
         diag.hypothesis = (
             "Gate cua workspace khong con hieu luc ben trong fixture. Kiem `fixture.setup` truoc, "
             "roi toi chinh gate."
         )
-    diag.suggested_change = taxonomy.suggestion(diag.category)
+        # Ve thu hai khong thua, va `taxonomy.suggestion` khong mang no: mot gate co the tra ma
+        # exit khac vi no DA DOI HANH VI mot cach co chu y -- hoac vi verdict cua no phu thuoc
+        # trang thai, nhu mot gate doc mot ban ghi task het han sau 12h. Da gap that; khi do viec
+        # can lam la sua `expected_exit`, khong phai them buoc vao `setup`.
+        diag.suggested_change = (
+            "Bo sung buoc cai dat con thieu vao `fixture.setup`, hoac sua lai `expected_exit` neu "
+            "gate da doi hanh vi mot cach co chu y."
+        )
     diag.suggestion = diag.suggested_change
     return diag
 

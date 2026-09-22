@@ -19,10 +19,10 @@ from skill_lab import case as case_mod
 from skill_lab import compare as compare_mod
 from skill_lab import config as config_mod
 from skill_lab import diagnose as diagnose_mod
+from skill_lab import doctor, evaluate, report, runner, store
 from skill_lab import experiment as experiment_mod
 from skill_lab import fixture as fixture_mod
 from skill_lab import model as model_mod
-from skill_lab import report, runner, store
 from skill_lab.model import RunRecord
 
 EXIT_OK = 0
@@ -106,7 +106,16 @@ def _cases_for(args: argparse.Namespace, config: config_mod.Config) -> list[case
 
 def cmd_run(args: argparse.Namespace) -> int:
     config = _config(args)
-    cases = _cases_for(args, config)
+    return _run_cases(config, _cases_for(args, config), args)
+
+
+def _run_cases(
+    config: config_mod.Config, cases: list[case_mod.Case], args: argparse.Namespace
+) -> int:
+    """Vong chay + bao cao + ma thoat, dung chung cho `run` va `evaluate`.
+
+    Tach ra de `evaluate` khong co mot duong bao cao thu hai cua rieng no. Hai duong bao cao se
+    lech nhau, va khi do cung mot lan chay se doc khac nhau tuy nguoi dung go lenh nao."""
     emit = (lambda line: print(f"  . {line[:150]}")) if args.step else None
 
     failures = 0
@@ -466,6 +475,66 @@ def cmd_skills(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_doctor(args: argparse.Namespace) -> int:
+    """Kiem tien de. Khong sua gi, khong chay actor, khong dung toi workspace."""
+    config = None
+    error = ""
+    try:
+        config = _config(args)
+    except config_mod.ConfigError as exc:
+        error = str(exc)
+    findings = doctor.run(config, config_error=error)
+    print(doctor.render(findings))
+    return EXIT_OK if all(f.ok for f in findings) else EXIT_ERROR
+
+
+def cmd_evaluate(args: argparse.Namespace) -> int:
+    """skill -> case -> lan chay -> bao cao, trong mot lenh.
+
+    Uu tien case da co. Chi sinh case khi chua co case nao cho skill do, va case sinh ra duoc ghi
+    ra dia truoc khi chay -- de thu duoc cham la thu doc duoc, khong phai mot cau hinh trong bo nho.
+    """
+    workspace = args.workspace
+    if args.from_git:
+        target = evaluate.clone_workspace(args.from_git)
+        print(f"da clone {args.from_git} -> {target}")
+        # Ban clone nay la workspace, nen `cases/` va `.skill-lab/runs/` cua lan chay nam TRONG no.
+        # Khong tu xoa sau khi chay: xoa la xoa chinh bang chung. Nhung mot thu muc tam ma nguoi
+        # dung tuong la vinh vien cung te khong kem, nen no duoc noi ra o day.
+        print(f"   case, trace va ban ghi lan chay se nam trong {target}")
+        print("   day la thu muc TAM -- chep ra ngoai neu can giu, lab khong tu xoa no")
+        workspace = str(target)
+    config = config_mod.load(Path(workspace) if workspace else None)
+
+    # Doctor truoc, va dung lai neu co muc HONG: moi muc hong o do deu lam lan chay sap toi tra ve
+    # mot con so khong noi ve skill.
+    findings = doctor.run(config)
+    broken = [f for f in findings if not f.ok]
+    if broken:
+        print(doctor.render(findings))
+        return EXIT_ERROR
+    print(f"tien de: dat ({len(findings)} muc)")
+
+    doc = evaluate.read_skill(config, args.skill)
+    cases = evaluate.existing_cases(config, args.skill)
+    if cases and not args.new_case:
+        print(f"dung {len(cases)} case da co cho `{args.skill}`: {', '.join(c.id for c in cases)}")
+    else:
+        if not args.task:
+            print(evaluate.task_hint(doc), file=sys.stderr)
+            return EXIT_ERROR
+        path = evaluate.write_case(config, doc, args.task, overwrite=args.new_case)
+        print(f"case: {path}")
+        cases = [case_mod.load(path)]
+
+    args.label = ""
+    args.keep = False
+    args.judge = False
+    args.effort = ""
+    args.step = False
+    return _run_cases(config, cases, args)
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     root = Path(args.workspace) if args.workspace else Path.cwd()
     target = root / config_mod.CONFIG_NAME
@@ -565,6 +634,34 @@ def build_parser() -> argparse.ArgumentParser:
     exp.add_argument("--min-runs", type=int, default=compare_mod.DEFAULT_MIN_RUNS)
     exp.set_defaults(func=cmd_experiment)
 
+    doctor_p = sub.add_parser("doctor", help="kiem moi tien de mot lan chay can; khong sua gi")
+    doctor_p.set_defaults(func=cmd_doctor)
+
+    ev = sub.add_parser(
+        "evaluate",
+        help="skill -> case -> lan chay -> bao cao, trong mot lenh",
+    )
+    ev.add_argument("skill", help="ten skill (thu muc duoi `workspace.skills`)")
+    ev.add_argument(
+        "--task",
+        default="",
+        help="viec can lam, viet nhu nguoi dung se go. Bat buoc khi chua co case nao cho skill nay "
+        "-- bo do khong doan task tu mo ta skill",
+    )
+    ev.add_argument(
+        "--from-git",
+        default="",
+        help="URL git cua workspace can do; shallow-clone roi do trong ban clone do",
+    )
+    ev.add_argument(
+        "--new-case",
+        action="store_true",
+        help="sinh lai case smoke va ghi de, thay vi dung case da co",
+    )
+    ev.add_argument("--model", default="", help="de ghi de model cua actor")
+    ev.add_argument("--dry", action="store_true", help="phat lai trace dong hop; khong goi model")
+    ev.set_defaults(func=cmd_evaluate)
+
     init = sub.add_parser("init", help="tao skill-lab.yaml cho workspace nay")
     init.add_argument("--force", action="store_true")
     init.set_defaults(func=cmd_init)
@@ -583,6 +680,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         store.StoreError,
         runner.RunnerError,
         experiment_mod.ExperimentError,
+        # Cung nhom voi cac loi tren: mot ten skill go sai hay mot URL git hong la loi dau vao,
+        # khong phai mot su co. Thieu dong nay thi `evaluate <ten-sai>` in ra traceback va thoat
+        # voi ma 1 -- dung ma nghia la "skill do", tuc bao cao mot that bai cua skill cho mot
+        # loi danh may.
+        evaluate.EvaluateError,
     ) as exc:
         print(f"loi: {exc}", file=sys.stderr)
         return EXIT_ERROR
